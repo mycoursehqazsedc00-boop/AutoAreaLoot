@@ -2365,7 +2365,7 @@ local function CreateToggleButton()
         AutoAreaLootDB.toggleButtonRelativePoint,
         AutoAreaLootDB.toggleButtonX,
         AutoAreaLootDB.toggleButtonY)
-    toggleButton:SetFrameStrata("MEDIUM")
+    toggleButton:SetFrameStrata("HIGH")
     toggleButton:SetClampedToScreen(true)
     toggleButton:SetMovable(true)
     toggleButton:EnableMouse(true)
