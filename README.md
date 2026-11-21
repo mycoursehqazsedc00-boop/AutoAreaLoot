@@ -25,6 +25,8 @@ AutoAreaLoot automatically loots nearby corpses when it is safe to do so. It is 
 - Shows the newest 500 loot events first with timestamps when rows are uncombined; keeps full-session combined item and money totals independently of that display limit
 - Item tooltips on hover; the loot log is resizable and remembers its size and position; it can open automatically on login or `/reload`
 - Automatically uses a built-in pfUI theme when pfUI is loaded
+- Movable on-screen toggle button (`AAL: ON` / `AAL: OFF`) with status tooltip, Left-Click toggle, Right-Click settings, and Shift-Click loot log (can be hidden via the settings menu or `/aal button`)
+- Optional Key Binding (`Toggle Auto-Loot` under `AutoAreaLoot` in Key Bindings)
 - `/aal debug` opens a bounded, copyable diagnostic trace without flooding chat
 
 ### New in 1.3.0: loot speed
@@ -49,7 +51,9 @@ Change it with `/aal speed safe|normal|fast` or the **Speed** button in the sett
 | Command | Action |
 |---|---|
 | `/aal` | Open or close the settings panel |
-| `/aal on` / `/aal off` | Enable or disable looting |
+| `/aal on` / `/aal off` / `/aal toggle` | Enable, disable, or toggle looting |
+| `/aal button` | Toggle showing or hiding the on-screen toggle button |
+| `/aal button show\|hide\|reset` | Show, hide, or reset the toggle button position |
 | `/aal death on\|off` | Toggle the death trigger |
 | `/aal stop on\|off` | Toggle the movement-stop trigger |
 | `/aal combat on\|off` | Toggle looting in combat |

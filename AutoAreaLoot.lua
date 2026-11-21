@@ -38,6 +38,11 @@ local defaults = {
     lootInCombat = true,
     lootCombine = false,
     openLootLogOnLogin = false,
+    showToggleButton = true,
+    toggleButtonPoint = "CENTER",
+    toggleButtonRelativePoint = "CENTER",
+    toggleButtonX = 0,
+    toggleButtonY = 180,
     lootLogWidth = 280,
     lootLogHeight = 195,
     lootLogPoint = "CENTER",
@@ -122,12 +127,14 @@ local state = {
 }
 
 local configFrame
+local toggleButton
 local lootLogFrame
 local lootLogContent
 local lootLogSummary
 local lootLogMoneySummary
 local debugFrame
 local debugEditBox
+local RefreshToggleButton
 local RefreshDebugLog
 
 local function DebugLog(message)
@@ -1515,6 +1522,12 @@ local function InitializeSettings()
     if not validAnchorPoints[AutoAreaLootDB.lootLogRelativePoint] then
         AutoAreaLootDB.lootLogRelativePoint = defaults.lootLogRelativePoint
     end
+    if not validAnchorPoints[AutoAreaLootDB.toggleButtonPoint] then
+        AutoAreaLootDB.toggleButtonPoint = defaults.toggleButtonPoint
+    end
+    if not validAnchorPoints[AutoAreaLootDB.toggleButtonRelativePoint] then
+        AutoAreaLootDB.toggleButtonRelativePoint = defaults.toggleButtonRelativePoint
+    end
     state.initialized = true
 end
 
@@ -2118,6 +2131,7 @@ local function SetEnabled(enabled)
         state.lootAfterCombat = false
         state.lootWalkActive = false
         state.lootWalkStartedAt = nil
+        state.movementStateKnown = false
         state.activeCapture = nil
         state.stopGraceTimer = nil
         state.lastStopLootRequestAt = nil
@@ -2125,6 +2139,23 @@ local function SetEnabled(enabled)
         state.lastStopPositionY = nil
         state.lastStopPositionZ = nil
     end
+    if RefreshToggleButton then RefreshToggleButton() end
+end
+
+BINDING_HEADER_AUTOAREALOOT = "AutoAreaLoot"
+BINDING_NAME_AUTOAREALOOT_TOGGLE = "Toggle Auto-Loot"
+
+function AutoAreaLoot_Toggle()
+    if not state.initialized then return end
+    SetEnabled(not AutoAreaLootDB.enabled)
+    RefreshConfigPanel()
+    DEFAULT_CHAT_FRAME:AddMessage(
+        "AutoAreaLoot: " .. (AutoAreaLootDB.enabled and "enabled." or "disabled."))
+end
+
+local function SetToggleButtonVisible(visible)
+    AutoAreaLootDB.showToggleButton = visible and true or false
+    if RefreshToggleButton then RefreshToggleButton() end
 end
 
 local function CreateCheckButton(parent, label, y, setting)
@@ -2132,6 +2163,8 @@ local function CreateCheckButton(parent, label, y, setting)
         AutoAreaLootDB[setting] = checked
         if setting == "enabled" then
             SetEnabled(AutoAreaLootDB.enabled)
+        elseif setting == "showToggleButton" then
+            SetToggleButtonVisible(AutoAreaLootDB.showToggleButton)
         end
     end)
     check:SetPoint("TOPLEFT", parent, "TOPLEFT", 20, y)
@@ -2167,6 +2200,9 @@ local function RefreshConfigPanel()
     configFrame.stopCheck:SetChecked(AutoAreaLootDB.lootOnStop)
     configFrame.combatCheck:SetChecked(AutoAreaLootDB.lootInCombat)
     configFrame.openLogCheck:SetChecked(AutoAreaLootDB.openLootLogOnLogin)
+    if configFrame.showButtonCheck then
+        configFrame.showButtonCheck:SetChecked(AutoAreaLootDB.showToggleButton)
+    end
 end
 
 local function CreateConfigPanel()
@@ -2174,7 +2210,7 @@ local function CreateConfigPanel()
 
     configFrame = CreateFrame("Frame", "AutoAreaLootConfigFrame", UIParent)
     configFrame:SetWidth(260)
-    configFrame:SetHeight(210)
+    configFrame:SetHeight(234)
     configFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
     configFrame:SetFrameStrata("DIALOG")
     configFrame:SetToplevel(true)
@@ -2228,6 +2264,8 @@ local function CreateConfigPanel()
         configFrame, "Allow looting in combat", -116, "lootInCombat")
     configFrame.openLogCheck = CreateCheckButton(
         configFrame, "Open loot log on login/reload", -140, "openLootLogOnLogin")
+    configFrame.showButtonCheck = CreateCheckButton(
+        configFrame, "Show toggle button", -164, "showToggleButton")
 
     local speedButton = CreateAALButton(configFrame, 118, 18, SpeedLabel())
     speedButton:SetPoint("BOTTOM", configFrame, "BOTTOM", 0, 30)
@@ -2253,6 +2291,157 @@ local function ShowConfigPanel()
     else
         configFrame:Show()
     end
+end
+
+RefreshToggleButton = function()
+    if not toggleButton or not state.initialized then return end
+    if AutoAreaLootDB.showToggleButton then
+        toggleButton:Show()
+    else
+        toggleButton:Hide()
+    end
+    if AutoAreaLootDB.enabled then
+        toggleButton.dot:SetVertexColor(0.24, 0.85, 0.42, 1)
+        toggleButton.label:SetText("AAL: ON")
+        toggleButton.label:SetTextColor(0.902, 0.929, 0.953, 1)
+        local r, g, b = GetThemeAccentColor()
+        toggleButton.accent:SetVertexColor(r, g, b, 0.90)
+    else
+        toggleButton.dot:SetVertexColor(0.85, 0.30, 0.30, 1)
+        toggleButton.label:SetText("AAL: OFF")
+        toggleButton.label:SetTextColor(0.60, 0.64, 0.69, 1)
+        toggleButton.accent:SetVertexColor(0.45, 0.20, 0.20, 0.65)
+    end
+end
+
+local function ResetToggleButtonPosition()
+    AutoAreaLootDB.toggleButtonPoint = defaults.toggleButtonPoint
+    AutoAreaLootDB.toggleButtonRelativePoint = defaults.toggleButtonRelativePoint
+    AutoAreaLootDB.toggleButtonX = defaults.toggleButtonX
+    AutoAreaLootDB.toggleButtonY = defaults.toggleButtonY
+    AutoAreaLootDB.showToggleButton = true
+    if toggleButton then
+        toggleButton:ClearAllPoints()
+        toggleButton:SetPoint(
+            AutoAreaLootDB.toggleButtonPoint,
+            UIParent,
+            AutoAreaLootDB.toggleButtonRelativePoint,
+            AutoAreaLootDB.toggleButtonX,
+            AutoAreaLootDB.toggleButtonY)
+    end
+    RefreshToggleButton()
+    RefreshConfigPanel()
+end
+
+local function PopulateToggleButtonTooltip(owner)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(owner, "ANCHOR_TOP")
+    GameTooltip:ClearLines()
+    GameTooltip:AddLine("AutoAreaLoot", 0.902, 0.929, 0.953)
+    if AutoAreaLootDB.enabled then
+        GameTooltip:AddDoubleLine("Status:", "Enabled", 0.70, 0.74, 0.78, 0.24, 0.85, 0.42)
+    else
+        GameTooltip:AddDoubleLine("Status:", "Disabled", 0.70, 0.74, 0.78, 0.85, 0.30, 0.30)
+    end
+    GameTooltip:AddDoubleLine("Speed:", tostring(AutoAreaLootDB.lootSpeed or "normal"),
+        0.70, 0.74, 0.78, 0.902, 0.929, 0.953)
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("Left-Click: Toggle On/Off", 0.65, 0.80, 1.00)
+    GameTooltip:AddLine("Right-Click: Settings", 0.65, 0.80, 1.00)
+    GameTooltip:AddLine("Shift-Click: Loot Log", 0.65, 0.80, 1.00)
+    GameTooltip:AddLine("Drag: Move Button", 0.65, 0.80, 1.00)
+    GameTooltip:Show()
+end
+
+local function CreateToggleButton()
+    if toggleButton then return end
+
+    toggleButton = CreateFrame("Button", "AutoAreaLootToggleButton", UIParent)
+    toggleButton:SetWidth(86)
+    toggleButton:SetHeight(24)
+    toggleButton:SetPoint(
+        AutoAreaLootDB.toggleButtonPoint,
+        UIParent,
+        AutoAreaLootDB.toggleButtonRelativePoint,
+        AutoAreaLootDB.toggleButtonX,
+        AutoAreaLootDB.toggleButtonY)
+    toggleButton:SetFrameStrata("MEDIUM")
+    toggleButton:SetClampedToScreen(true)
+    toggleButton:SetMovable(true)
+    toggleButton:EnableMouse(true)
+    toggleButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    toggleButton:RegisterForDrag("LeftButton")
+    ApplyThemeBackdrop(toggleButton, 0.90, true)
+
+    local accent = toggleButton:CreateTexture(nil, "BORDER")
+    accent:SetTexture("Interface\\Buttons\\WHITE8X8")
+    accent:SetPoint("TOPLEFT", toggleButton, "TOPLEFT", 1, -1)
+    accent:SetPoint("TOPRIGHT", toggleButton, "TOPRIGHT", -1, -1)
+    accent:SetHeight(2)
+    toggleButton.accent = accent
+
+    local dot = toggleButton:CreateTexture(nil, "ARTWORK")
+    dot:SetTexture(CIRCLE_TEXTURE)
+    dot:SetWidth(8)
+    dot:SetHeight(8)
+    dot:SetPoint("LEFT", toggleButton, "LEFT", 8, -1)
+    toggleButton.dot = dot
+
+    local label = toggleButton:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    label:SetPoint("LEFT", dot, "RIGHT", 6, 0)
+    ApplyLootFont(label, 10)
+    toggleButton.label = label
+
+    toggleButton:SetScript("OnDragStart", function()
+        this:StartMoving()
+    end)
+    toggleButton:SetScript("OnDragStop", function()
+        this:StopMovingOrSizing()
+        local point, _, relativePoint, x, y = this:GetPoint()
+        if validAnchorPoints[point] then
+            AutoAreaLootDB.toggleButtonPoint = point
+        end
+        if validAnchorPoints[relativePoint] then
+            AutoAreaLootDB.toggleButtonRelativePoint = relativePoint
+        end
+        if type(x) == "number" then
+            AutoAreaLootDB.toggleButtonX = math.floor(x + 0.5)
+        end
+        if type(y) == "number" then
+            AutoAreaLootDB.toggleButtonY = math.floor(y + 0.5)
+        end
+    end)
+
+    toggleButton:SetScript("OnClick", function()
+        if arg1 == "RightButton" then
+            ShowConfigPanel()
+            return
+        end
+        if type(IsShiftKeyDown) == "function" and IsShiftKeyDown() then
+            ShowLootLog()
+            return
+        end
+        SetEnabled(not AutoAreaLootDB.enabled)
+        RefreshConfigPanel()
+        DEFAULT_CHAT_FRAME:AddMessage(
+            "AutoAreaLoot: " .. (AutoAreaLootDB.enabled and "enabled." or "disabled."))
+        if GameTooltip and type(GameTooltip.IsOwned) == "function" and GameTooltip:IsOwned(this) then
+            PopulateToggleButtonTooltip(this)
+        end
+    end)
+
+    toggleButton:SetScript("OnEnter", function()
+        local r, g, b = GetThemeAccentColor()
+        this:SetBackdropBorderColor(r, g, b, 1)
+        PopulateToggleButtonTooltip(this)
+    end)
+    toggleButton:SetScript("OnLeave", function()
+        local r, g, b, a = GetThemeBorderColor()
+        this:SetBackdropBorderColor(r, g, b, a)
+        if GameTooltip then GameTooltip:Hide() end
+    end)
+
+    RefreshToggleButton()
 end
 
 local function HandlePlayerMovementStarted(source)
@@ -2386,6 +2575,7 @@ eventFrame:SetScript("OnEvent", function()
             state.useSpeedMovement = type(GetUnitSpeed) == "function"
             state.moneyBaseline = SafeGetMoney()
             CreateConfigPanel()
+            CreateToggleButton()
             eventFrame:UnregisterEvent("ADDON_LOADED")
             HasClassicAPILoot()
             if AutoAreaLootDB.openLootLogOnLogin then
@@ -2461,6 +2651,7 @@ eventFrame:SetScript("OnEvent", function()
     end
 
     if event == "UNIT_DIED" or event == "CHAT_MSG_COMBAT_HOSTILE_DEATH" then
+        if not AutoAreaLootDB.enabled then return end
         if AutoAreaLootDB.lootOnDeath then
             local deathGuid = event == "UNIT_DIED" and arg1 or nil
             local accepted, distance = ShouldAcceptDeathTrigger(deathGuid)
@@ -2595,6 +2786,7 @@ eventFrame:SetScript("OnEvent", function()
         or event == "UNIT_SPELLCAST_STOP" then
         if string.sub(event, 1, 5) ~= "UNIT_" or arg1 == "player" then
             state.playerSpellcastActive = false
+            state.playerSpellcastSince = nil
             DebugLog("Player spellcast ended; servicing deferred loot")
             ServicePendingLootRequest()
         end
@@ -2606,6 +2798,7 @@ eventFrame:SetScript("OnEvent", function()
         or event == "UNIT_SPELLCAST_CHANNEL_FAILED" then
         if arg1 == "player" then
             state.playerSpellcastActive = false
+            state.playerSpellcastSince = nil
             DebugLog("Player channel ended; servicing deferred loot")
             ServicePendingLootRequest()
         end
@@ -2615,7 +2808,7 @@ eventFrame:SetScript("OnEvent", function()
 end)
 
 eventFrame:SetScript("OnUpdate", function()
-    if not state.initialized then return end
+    if not state.initialized or not AutoAreaLootDB.enabled then return end
 
     state.playerStateSampleElapsed = state.playerStateSampleElapsed + arg1
     if state.playerStateSampleElapsed >= PLAYER_STATE_SAMPLE_INTERVAL then
@@ -2676,6 +2869,26 @@ SlashCmdList["AUTOAREA_LOOT"] = function(message)
         SetEnabled(false)
         RefreshConfigPanel()
         DEFAULT_CHAT_FRAME:AddMessage("AutoAreaLoot: disabled.")
+    elseif command == "toggle" then
+        SetEnabled(not AutoAreaLootDB.enabled)
+        RefreshConfigPanel()
+        DEFAULT_CHAT_FRAME:AddMessage(
+            "AutoAreaLoot: " .. (AutoAreaLootDB.enabled and "enabled." or "disabled."))
+    elseif command == "button" then
+        SetToggleButtonVisible(not AutoAreaLootDB.showToggleButton)
+        RefreshConfigPanel()
+        Say("toggle button " .. (AutoAreaLootDB.showToggleButton and "shown." or "hidden."))
+    elseif settingWord == "button" and (settingValue == "show" or settingValue == "on") then
+        SetToggleButtonVisible(true)
+        RefreshConfigPanel()
+        Say("toggle button shown.")
+    elseif settingWord == "button" and (settingValue == "hide" or settingValue == "off") then
+        SetToggleButtonVisible(false)
+        RefreshConfigPanel()
+        Say("toggle button hidden.")
+    elseif settingWord == "button" and settingValue == "reset" then
+        ResetToggleButtonPosition()
+        Say("toggle button position reset.")
     elseif command == "status" then
         DEFAULT_CHAT_FRAME:AddMessage(
             "AutoAreaLoot is " .. (AutoAreaLootDB.enabled and "enabled" or "disabled")
@@ -2683,6 +2896,7 @@ SlashCmdList["AUTOAREA_LOOT"] = function(message)
             .. "; stop trigger " .. (AutoAreaLootDB.lootOnStop and "on" or "off")
             .. "; combat looting " .. (AutoAreaLootDB.lootInCombat and "on" or "off")
             .. "; speed " .. (AutoAreaLootDB.lootSpeed or "normal")
+            .. "; button " .. (AutoAreaLootDB.showToggleButton and "shown" or "hidden")
             .. ".")
         Say("ClassicAPI loot: "
             .. ((C_Loot and type(C_Loot.LootAllCorpses) == "function") and "found" or "MISSING")
@@ -2698,7 +2912,8 @@ SlashCmdList["AUTOAREA_LOOT"] = function(message)
         Say("loot speed set to " .. settingValue .. ".")
     elseif command == "help" or command == "?" then
         Say("/aal - settings panel")
-        Say("/aal on | off - enable or disable looting")
+        Say("/aal on | off | toggle - enable, disable, or toggle looting")
+        Say("/aal button [show|hide|reset] - show, hide, or reset the toggle button")
         Say("/aal death|stop|combat on|off - set a trigger")
         Say("/aal speed safe|normal|fast - how long to wait around a scan")
         Say("/aal status - show settings and client-mod detection")

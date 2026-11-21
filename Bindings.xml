@@ -1,0 +1,5 @@
+<Bindings>
+    <Binding name="AUTOAREALOOT_TOGGLE" header="AUTOAREALOOT">
+        AutoAreaLoot_Toggle();
+    </Binding>
+</Bindings>
